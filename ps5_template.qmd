@@ -56,14 +56,67 @@ alt.renderers.enable("png")
 ### 1. Scraping (PARTNER 1)
 
 ```{python}
+import requests
+from bs4 import BeautifulSoup
+
+url = "https://oig.hhs.gov/fraud/enforcement/"
+
+response = requests.get(url)
+soup = BeautifulSoup(response.content, 'lxml')
+
+enforcement_actions = soup.find_all('div', class_='usa-card__container')
+
+titles = []
+dates = []
+categories = []
+links = []
+
+for action in enforcement_actions:
+    
+    title_tag = action.find('h2', class_='usa-card__heading').find('a')
+    title = title_tag.text.strip()
+    link = "https://oig.hhs.gov" + title_tag['href']
+    
+    date = action.find('span', class_='text-base-dark padding-right-105').text.strip()
+    
+    category_tag = action.find('ul', class_='display-inline add-list-reset')
+    category = category_tag.find('li').text.strip()
+    
+    titles.append(title)
+    dates.append(date)
+    categories.append(category)
+    links.append(link)
+
+df = pd.DataFrame({
+    'Title': titles,
+    'Date': dates,
+    'Category': categories,
+    'Link': links
+})
+
+print(df.head())
 
 ```
 
-  
 ### 2. Crawling (PARTNER 1)
 
 ```{python}
+agencies = []
+for link in links:
+    response = requests.get(link)
+    soup = BeautifulSoup(response.content, 'lxml')
+    
+    agency_tag = soup.find('span', class_='padding-right-2 text-base')
+    agency = agency_tag.find_next('li').text.strip()  
+    
+    # Remove the "Agency:" prefix from the agency name
+    agency = agency.replace("Agency:", "").strip()
+    
+    agencies.append(agency)
 
+df['Agency'] = agencies
+
+print(df.head())
 ```
 
 ## Step 2: Making the scraper dynamic
