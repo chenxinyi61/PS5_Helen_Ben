@@ -26,11 +26,11 @@ output:
 ## Submission Steps (10 pts)
 1. This problem set is a paired problem set.
 2. Play paper, scissors, rock to determine who goes first. Call that person *Partner 1*.
-    - Partner 1 (name and cnet ID):
-    - Partner 2 (name and cnet ID):
+    - Partner 1 (name and cnet ID): Ben Zhang, bzhang369
+    - Partner 2 (name and cnet ID): Xinyi Chen, chen61
 3. Partner 1 will accept the `ps5` and then share the link it creates with their partner. You can only share it with one partner so you will not be able to change it after your partner has accepted. 
-4. "This submission is our work alone and complies with the 30538 integrity policy." Add your initials to indicate your agreement: \*\*\_\_\*\* \*\*\_\_\*\*
-5. "I have uploaded the names of anyone else other than my partner and I worked with on the problem set **[here](https://docs.google.com/forms/d/185usrCREQaUbvAXpWhChkjghdGgmAZXA3lPWpXLLsts/edit)**"  (1 point)
+4. "This submission is our work alone and complies with the 30538 integrity policy." Add your initials to indicate your agreement: XC, BZ
+5. "I have uploaded the names of anyone else other than my partner and I worked with on the problem set **[here](https://docs.google.com/forms/d/185usrCREQaUbvAXpWhChkjghdGgmAZXA3lPWpXLLsts/edit)**"  : XC, BZ(1 point)
 6. Late coins used this pset: \*\*\_\_\*\* Late coins left after submission: \*\*\_\_\*\*
 7. Knit your `ps5.qmd` to an PDF file to make `ps5.pdf`, 
     * The PDF should not be more than 25 pages. Use `head()` and re-size figures when appropriate. 
@@ -105,18 +105,23 @@ agencies = []
 for link in links:
     response = requests.get(link)
     soup = BeautifulSoup(response.content, 'lxml')
-    
+
     agency_tag = soup.find('span', class_='padding-right-2 text-base')
-    agency = agency_tag.find_next('li').text.strip()  
-    
-    # Remove the "Agency:" prefix from the agency name
-    agency = agency.replace("Agency:", "").strip()
-    
+    if agency_tag:
+        agency_text = agency_tag.find_next('li').text.strip()
+        if agency_text.startswith("Agency:"):
+            agency = agency_text.replace("Agency:", "").strip()
+        else:
+            agency = "Unknown"  # If "Agency" prefix is not present, assign "Unknown"
+    else:
+        agency = "Unknown"  
+
     agencies.append(agency)
 
 df['Agency'] = agencies
 
 print(df.head())
+
 ```
 
 ## Step 2: Making the scraper dynamic
@@ -126,9 +131,118 @@ print(df.head())
 * a. Pseudo-Code (PARTNER 2)
 
 
+
 * b. Create Dynamic Scraper (PARTNER 2)
 
 ```{python}
+import requests
+from bs4 import BeautifulSoup
+import pandas as pd
+import time
+from datetime import datetime
+
+def scrape_enforcement_actions(start_year, start_month):
+    # Check if the input year is valid
+    if start_year < 2013:
+        print("Data is only available for years >= 2013.")
+        return None  # Exit the function if year is invalid
+
+    # Initialize empty lists for storing data
+    titles = []
+    dates = []
+    categories = []
+    links = []
+    agencies = []
+
+    # Set start and end dates
+    start_date = datetime(start_year, start_month, 1)
+    current_date = datetime.now()
+
+    # Initialize pagination
+    page = 1
+    more_pages = True
+
+    while more_pages and page <= 480:  # Limit to 480 pages as specified
+        # Construct URL for the current page
+        url = f"https://oig.hhs.gov/fraud/enforcement/?page={page}"
+        print(f"Scraping page {page}...")
+
+        # Request page and parse content
+        response = requests.get(url)
+        soup = BeautifulSoup(response.content, 'lxml')
+        enforcement_actions = soup.find_all('div', class_='usa-card__container')
+
+        # Stop the loop if no actions are found on the page
+        if not enforcement_actions:
+            more_pages = False
+            break
+
+        # Extract enforcement action details
+        for action in enforcement_actions:
+            # Extract and parse date
+            date_text = action.find('span', class_='text-base-dark padding-right-105').text.strip()
+            action_date = datetime.strptime(date_text, "%B %d, %Y")
+            
+            # If the action_date is before the start date, stop scraping
+            if action_date < start_date:
+                more_pages = False
+                break
+
+            # Extract title, link, and category
+            title_tag = action.find('h2', class_='usa-card__heading').find('a')
+            title = title_tag.text.strip()
+            link = "https://oig.hhs.gov" + title_tag['href']
+            category_tag = action.find('ul', class_='display-inline add-list-reset')
+            category = category_tag.find('li').text.strip()
+
+            # Append to lists
+            titles.append(title)
+            dates.append(date_text)
+            categories.append(category)
+            links.append(link)
+
+            # Fetch agency from detailed page with check for "Agency" prefix
+            agency_response = requests.get(link)
+            agency_soup = BeautifulSoup(agency_response.content, 'lxml')
+            agency_tag = agency_soup.find('span', class_='padding-right-2 text-base')
+            if agency_tag:
+                agency_text = agency_tag.find_next('li').text.strip()
+                if agency_text.startswith("Agency:"):
+                    agency = agency_text.replace("Agency:", "").strip()
+                else:
+                    agency = "Unknown"  # If "Agency" prefix is not present, assign "Unknown"
+            else:
+                agency = "Unknown"  # In case there's no agency information
+            agencies.append(agency)
+
+            # Wait before next request
+            time.sleep(1)
+
+        # Move to the next page
+        page += 1
+
+    # Create DataFrame and save to CSV
+    df = pd.DataFrame({
+        'Title': titles,
+        'Date': dates,
+        'Category': categories,
+        'Link': links,
+        'Agency': agencies
+    })
+    df.to_csv(f"enforcement_actions_{start_year}_{start_month}.csv", index=False)
+    print(f"Data saved to enforcement_actions_{start_year}_{start_month}.csv")
+    
+    # Display result summary
+    print(f"Total enforcement actions: {len(df)}")
+    earliest_action = df.sort_values(by='Date').iloc[0]
+    print("Earliest enforcement action scraped:")
+    print(earliest_action)
+
+    return df
+
+# Run the scraper from January 2023
+df = scrape_enforcement_actions(2024, 10)
+
 
 ```
 
