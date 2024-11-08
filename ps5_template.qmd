@@ -44,6 +44,8 @@ output:
 import pandas as pd
 import altair as alt
 import time
+import requests
+from bs4 import BeautifulSoup
 
 import warnings 
 warnings.filterwarnings('ignore')
@@ -56,9 +58,6 @@ alt.renderers.enable("png")
 ### 1. Scraping (PARTNER 1)
 
 ```{python}
-import requests
-from bs4 import BeautifulSoup
-
 url = "https://oig.hhs.gov/fraud/enforcement/"
 
 response = requests.get(url)
@@ -259,18 +258,20 @@ def scrape_enforcement_actions(start_year, start_month):
     return df
 
 # ChatGpt: Can you help me reduces the time of running this loop?, agency_cache to store agency information by link.
-
-df = scrape_enforcement_actions(2023, 1)
 ```
 
 ```{python}
- print(f"Total enforcement actions: {len(df)}")
+df_2023 = scrape_enforcement_actions(2023, 1)
+print(f"Total enforcement actions: {len(df_2023)}")
+print(f"The last row is : {df_2023.tail(1)}")
 ```
 
 * c. Test Partner's Code (PARTNER 1)
 
 ```{python}
-
+df_2021 = scrape_enforcement_actions(2021, 1)
+print(f"Total enforcement actions: {len(df_2021)}")
+print(f"The last row is : {df_2021.tail(1)}")
 ```
 
 ## Step 3: Plot data based on scraped data
@@ -278,7 +279,23 @@ df = scrape_enforcement_actions(2023, 1)
 ### 1. Plot the number of enforcement actions over time (PARTNER 2)
 
 ```{python}
+df_2021 = pd.read_csv("enforcement_actions_2021_1.csv")
 
+df_2021['Date'] = pd.to_datetime(df_2021['Date'], format="%B %d, %Y")
+
+df_2021['Year-Month'] = df_2021['Date'].dt.to_period('M')
+
+monthly_counts = df_2021.groupby('Year-Month').size().reset_index(name='Count')
+monthly_counts['Year-Month'] = monthly_counts['Year-Month'].dt.to_timestamp()  # 
+
+alt.Chart(monthly_counts).mark_line().encode(
+    x=alt.X('Year-Month:T', title='Date', axis=alt.Axis(format='%Y-%m')),
+    y=alt.Y('Count:Q', title='Number of Enforcement Actions')
+).properties(
+    title='Monthly Enforcement Actions Since January 2021',
+    width=600,
+    height=400
+)
 ```
 
 ### 2. Plot the number of enforcement actions categorized: (PARTNER 1)
@@ -286,13 +303,55 @@ df = scrape_enforcement_actions(2023, 1)
 * based on "Criminal and Civil Actions" vs. "State Enforcement Agencies"
 
 ```{python}
+df_2021['Year-Month'] = df_2021['Date'].dt.to_period('M').dt.to_timestamp()
 
+df_filtered = df_2021[df_2021['Category'].isin(["Criminal and Civil Actions", "State Enforcement Agencies"])]
+
+category_counts = df_filtered.groupby(['Year-Month', 'Category']).size().reset_index(name='Count')
+
+alt.Chart(category_counts).mark_line().encode(
+    x=alt.X('Year-Month:T', title='Date', axis=alt.Axis(format='%Y-%m')),
+    y=alt.Y('Count:Q', title='Number of Enforcement Actions'),
+    color=alt.Color('Category:N', title='Category'),
+    tooltip=['Year-Month:T', 'Count:Q', 'Category:N']
+).properties(
+    title='Monthly Enforcement Actions: Criminal and Civil Actions vs. State Enforcement Agencies',
+    width=600,
+    height=400
+)
 ```
 
 * based on five topics
 
 ```{python}
+df_criminal_civil = df_filtered[df_filtered['Category'] == "Criminal and Civil Actions"]
 
+def assign_topic(title):
+    title_lower = title.lower()
+    if "health" in title_lower or "medi" in title_lower:
+        return "Health Care Fraud"
+    elif "bank" in title_lower or "financial" in title_lower or "laundering" in title_lower or "tax" in title_lower :
+        return "Financial Fraud"
+    elif "drug" in title_lower or "opioid" in title_lower or "substance" in title_lower:
+        return "Drug Enforcement"
+    elif "bribe" in title_lower or "corruption" in title_lower or "kickback" in title_lower:
+        return "Bribery/Corruption"
+    else:
+        return "Other"
+
+df_criminal_civil['Topic'] = df_criminal_civil['Title'].apply(assign_topic)
+
+topic_counts = df_criminal_civil.groupby(['Year-Month', 'Topic']).size().reset_index(name='Count')
+
+alt.Chart(topic_counts).mark_line().encode(
+    x=alt.X('Year-Month:T', title='Date', axis=alt.Axis(format='%Y-%m')),
+    y=alt.Y('Count:Q', title='Number of Enforcement Actions'),
+    color=alt.Color('Topic:N', title='Topic')
+).properties(
+    title='Monthly Enforcement Actions by Topic in Criminal and Civil Actions',
+    width=600,
+    height=400
+)
 ```
 
 ## Step 4: Create maps of enforcement activity
@@ -300,6 +359,33 @@ df = scrape_enforcement_actions(2023, 1)
 ### 1. Map by State (PARTNER 1)
 
 ```{python}
+import geopandas as gpd
+import matplotlib.pyplot as plt
+
+state_gdf = gpd.read_file("cb_2018_us_state_500k.shp")
+enforcement_data = pd.read_csv("enforcement_actions_2021_1.csv")  
+
+state_enforcement = enforcement_data[enforcement_data['Agency'].str.contains("State of", na=False)]
+state_enforcement['State'] = state_enforcement['Agency'].str.replace("State of", "").str.strip()
+
+state_counts = state_enforcement['State'].value_counts().reset_index()
+state_counts.columns = ['State', 'EnforcementCount']
+
+state_gdf = state_gdf.rename(columns={"NAME": "State"})  
+merged_gdf = state_gdf.merge(state_counts, on="State", how="left").fillna(0) 
+
+fig, ax = plt.subplots(1, 1, figsize=(15, 10))
+merged_gdf.plot(column="EnforcementCount", cmap="Blues", linewidth=0.8, ax=ax, edgecolor="0.8", legend=True)
+ax.set_title("Enforcement Actions by State", fontsize=16)
+ax.set_axis_off()
+
+# ChatGpt, "how can I make my graph bigger and remove Alska state"
+
+plt.axis('equal')  # Keeps the aspect ratio correct
+plt.xlim([-130, -60])  # Focus on the contiguous U.S.
+plt.ylim([20, 55])
+
+plt.show()
 
 ```
 
@@ -307,18 +393,85 @@ df = scrape_enforcement_actions(2023, 1)
 ### 2. Map by District (PARTNER 2)
 
 ```{python}
+district_gdf = gpd.read_file("geo_export_828db5ef-6c4f-412d-aed1-b5f6c9905efd.shp")
 
+enforcement_data = pd.read_csv("enforcement_actions_2021_1.csv")
+
+district_enforcement = enforcement_data[enforcement_data['Agency'].str.contains("District", na=False)]
+
+# Extract the district name from the 'Agency' column using regex
+district_enforcement['District'] = district_enforcement['Agency'].str.split(',').str[1].str.strip()
+
+# Clean the district names further if necessary, e.g., remove extra text or symbols
+district_enforcement['District'] = district_enforcement['District'].str.replace(r'[^\w\s,.-]', '', regex=True)
+
+# Assuming the district shapefile has a 'Judicial District' column to match
+district_gdf = district_gdf.rename(columns={"judicial_d": "District"})  # Adjust the column name to match
+
+# Count the number of enforcement actions by district
+district_counts = district_enforcement['District'].value_counts().reset_index()
+district_counts.columns = ['District', 'EnforcementCount']
+
+# Merge the cleaned district data with the district shapefile
+merged_district_gdf = district_gdf.merge(district_counts, on="District", how="left").fillna(0)
+
+# Plot the choropleth map for enforcement actions by district
+fig, ax = plt.subplots(1, 1, figsize=(12, 8))  # Adjust the figure size
+merged_district_gdf.plot(
+    column="EnforcementCount", 
+    cmap="Blues", 
+    linewidth=0.8, 
+    ax=ax, 
+    edgecolor="0.8", 
+    legend=True
+)
+
+ax.set_title("Enforcement Actions by US Attorney District", fontsize=16)
+ax.set_axis_off()  # Turn off the axis for better presentation
+
+plt.axis('equal')  # Keeps the aspect ratio correct
+plt.xlim([-130, -60])  # Focus on the contiguous U.S.
+plt.ylim([20, 55])
+
+plt.show()
 ```
+
 
 ## Extra Credit
 
 ### 1. Merge zip code shapefile with population
 ```{python}
+zip_codes = gpd.read_file("gz_2010_us_860_00_500k.shp")
+population_2020 = pd.read_csv("DECENNIALDHC2020.P1-Data.csv")
 
+population_2020  = population_2020.drop(index=0).reset_index(drop=True)
+
+population_2020.rename(columns={'NAME': 'ZCTA5'}, inplace=True)
+
+population_2020 ['ZCTA5'] = population_2020 ['ZCTA5'].str.replace('ZCTA5 ', '', regex=False)
+
+population_2020 = population_2020.drop(columns=['Unnamed: 3'])
+
+merged_2020 = population_2020.merge(zip_codes, left_on='ZCTA5', right_on='ZCTA5', how='left')
+
+print(merged_2020.head(3))
 ```
 
 ### 2. Conduct spatial join
 ```{python}
+merged_2020['P1_001N'] = pd.to_numeric(merged_2020['P1_001N'])
+
+merged_2020 = gpd.GeoDataFrame(merged_2020, geometry='geometry')
+
+merged_2020 = merged_2020.set_crs(zip_codes.crs)
+merged_2020 = merged_2020.to_crs(district_gdf.crs)
+
+joined = gpd.sjoin(merged_2020, district_gdf, how="left", predicate="intersects")
+
+district_population = joined.groupby('District')['P1_001N'].sum().reset_index()
+district_population.rename(columns={'P1_001N': 'Total_Population'}, inplace=True)
+
+print(district_population)
 
 ```
 
