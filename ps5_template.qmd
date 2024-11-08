@@ -95,6 +95,11 @@ df = pd.DataFrame({
 
 print(df.head())
 
+# reference: removes any leading (starting) and trailing (ending) whitespaces
+# https://www.programiz.com/python-programming/methods/string/strip
+
+# ChatGpt, "how can I save my loop result into a dataframe", ask for help of how cna I save appened information into a dataframe.
+
 ```
 
 ### 2. Crawling (PARTNER 1)
@@ -121,6 +126,8 @@ df['Agency'] = agencies
 
 print(df.head())
 
+# ChatGpt, 'Help me debug my if statement inside my for loop, there is error', ask help to combine if statment into for loop
+
 ```
 
 ## Step 2: Making the scraper dynamic
@@ -133,7 +140,7 @@ print(df.head())
 
 Check if start_year is valid (>= 2013). If not, return a message indicating the restriction.
 
-2. Initialize variables
+2. Create empty variables
 
 Create empty lists for titles, dates, categories, links, and agencies.
 
@@ -141,40 +148,33 @@ Set start_date based on start_year and start_month.
 
 Set page to 1 and more_pages to True.
 
-Initialize agency_cache as an empty dictionary.
+Initialize agency_cache as an empty dictionary. (to reduce run time)
 
 3. First Loop to Iterate Pages
 
-While there are more pages and the current page is <= 480:
-Build the URL for the current page.
-Send a request to the URL and parse the content using BeautifulSoup.
-Extract enforcement actions using HTML tags.
+set restriction of page <= 480
+
+Build the URL for the current page and send a request to the URL and parse the content using BeautifulSoup.
 
 4. Check if there are enforcement actions
 
 If no enforcement actions are found, set more_pages to False and exit the loop.
 
-5. Second Loop through enforcement actions 
+5. Second Loop 
 
-For each enforcement action: Extract the date and check if it’s older than start_date. If so, stop further pages.
+Extract the date and check if it’s older than start_date. If so, stop further pages.
 
-Extract details (title, link, category).
-
-Check if the agency information for the link is cached. If not:
-Send a request to the link's page and scrape the agency information.
+Extract details (title, link, category, Agency).
 
 Cache the agency information to avoid duplicate requests.
 
 Append the extracted data to the lists.
 
-6. Move to the next page by incrementing page.
+6. Move to the next page (if not older than start_date)
 
 7. Save data to CSV
 
 Create a DataFrame and save it to a CSV file.
-Print the total number of enforcement actions scraped.
-
-8. Return the DataFrame
 
 
 * b. Create Dynamic Scraper (PARTNER 2)
@@ -183,11 +183,11 @@ Print the total number of enforcement actions scraped.
 ```{python}
 from datetime import datetime
 
-def scrape_enforcement_actions(start_year, start_month):
+def scrape_actions(start_year, start_month):
     if start_year < 2013:
         print("Data is only available for years >= 2013.")
         return None
-
+# initial empty variables and page 
     titles, dates, categories, links, agencies = [], [], [], [], []
     start_date = datetime(start_year, start_month, 1)
     page = 1
@@ -213,6 +213,7 @@ def scrape_enforcement_actions(start_year, start_month):
             if action_date < start_date:
                 more_pages = False
                 break
+# Write a condition here to aviod loop all 480 pages, help from ChatGpt
 
             title_tag = action.find('h2', class_='usa-card__heading').find('a')
             title = title_tag.text.strip()
@@ -226,6 +227,7 @@ def scrape_enforcement_actions(start_year, start_month):
             links.append(link)
 
 # Agency Caching: if an agency’s page has already been accessed, the cached value will be used, reducing the number of detail page requests.
+
             if link in agency_cache:
                 agency = agency_cache[link]
             else:
@@ -237,7 +239,7 @@ def scrape_enforcement_actions(start_year, start_month):
                     if agency_text.startswith("Agency:"):
                         agency = agency_text.replace("Agency:", "").strip()
                     else:
-                        agency = "Unknown"
+                        agency = "Unknown" # some do not have agency, put unknown here
                 else:
                     agency = "Unknown"
                 agency_cache[link] = agency  # Cache the result to avoid future requests
@@ -258,20 +260,21 @@ def scrape_enforcement_actions(start_year, start_month):
     return df
 
 # ChatGpt: Can you help me reduces the time of running this loop?, agency_cache to store agency information by link.
+# ChatGpt: Can you debug my code, I want to make the loop iterate with pages, and stop at the date I input. 
 ```
 
 ```{python}
-df_2023 = scrape_enforcement_actions(2023, 1)
+df_2023 = scrape_actions(2023, 1)
 print(f"Total enforcement actions: {len(df_2023)}")
-print(f"The last row is : {df_2023.tail(1)}")
+print(f"The earliest enforcement action date is: {df_2023.tail(1)}")
 ```
 
 * c. Test Partner's Code (PARTNER 1)
 
 ```{python}
-df_2021 = scrape_enforcement_actions(2021, 1)
+df_2021 = scrape_actions(2021, 1)
 print(f"Total enforcement actions: {len(df_2021)}")
-print(f"The last row is : {df_2021.tail(1)}")
+print(f"The earliest enforcement action date is: {df_2021.tail(1)}")
 ```
 
 ## Step 3: Plot data based on scraped data
@@ -286,7 +289,7 @@ df_2021['Date'] = pd.to_datetime(df_2021['Date'], format="%B %d, %Y")
 df_2021['Year-Month'] = df_2021['Date'].dt.to_period('M')
 
 monthly_counts = df_2021.groupby('Year-Month').size().reset_index(name='Count')
-monthly_counts['Year-Month'] = monthly_counts['Year-Month'].dt.to_timestamp()  # 
+monthly_counts['Year-Month'] = monthly_counts['Year-Month'].dt.to_timestamp()  
 
 alt.Chart(monthly_counts).mark_line().encode(
     x=alt.X('Year-Month:T', title='Date', axis=alt.Axis(format='%Y-%m')),
@@ -296,6 +299,8 @@ alt.Chart(monthly_counts).mark_line().encode(
     width=600,
     height=400
 )
+
+# Reference of datetime: #https://pandas.pydata.org/docs/reference/api/pandas.to_datetime.html
 ```
 
 ### 2. Plot the number of enforcement actions categorized: (PARTNER 1)
@@ -341,6 +346,8 @@ def assign_topic(title):
 
 df_criminal_civil['Topic'] = df_criminal_civil['Title'].apply(assign_topic)
 
+# Chatgpt, ‘can you write a template for me to search for certain words and make it become a new category in new column', ask help for write a function at beginning
+
 topic_counts = df_criminal_civil.groupby(['Year-Month', 'Topic']).size().reset_index(name='Count')
 
 alt.Chart(topic_counts).mark_line().encode(
@@ -352,6 +359,8 @@ alt.Chart(topic_counts).mark_line().encode(
     width=600,
     height=400
 )
+
+
 ```
 
 ## Step 4: Create maps of enforcement activity
@@ -384,6 +393,7 @@ plt.xlim([-180, -60])
 
 plt.show()
 
+# ChatGpt, "how can I make my graph bigger", ask help for adjust the size bigger
 
 ```
 
@@ -402,6 +412,8 @@ district_enforcement['District'] = district_enforcement['District'].str.replace(
  
 district_gdf = district_gdf.rename(columns={"judicial_d": "District"}) 
 
+# Chatgpt, 'I want to extract information after comma, how can I write that', help for /split() function
+# reference: https://teamtreehouse.com/community/can-someone-explain-the-logic-of-replacews-to-me
 
 district_counts = district_enforcement['District'].value_counts().reset_index()
 district_counts.columns = ['District', 'EnforcementCount']
@@ -421,7 +433,7 @@ merged_district_gdf.plot(
 ax.set_title("Enforcement Actions by US Attorney District", fontsize=16)
 ax.set_axis_off()  
 
-plt.axis('equal')  # Keeps the aspect ratio correct
+plt.axis('equal')  
 plt.xlim([-180, -60])  
 plt.ylim([20, 55])
 
@@ -432,6 +444,7 @@ plt.show()
 
 ### 1. Merge zip code shapefile with population
 ```{python}
+# read file from last PS
 zip_codes = gpd.read_file("gz_2010_us_860_00_500k.shp")
 
 population_2020 = pd.read_csv("DECENNIALDHC2020.P1-Data.csv")
@@ -442,7 +455,7 @@ population_2020.rename(columns={'NAME': 'ZCTA5'}, inplace=True)
 
 population_2020 ['ZCTA5'] = population_2020 ['ZCTA5'].str.replace('ZCTA5 ', '', regex=False)
 
-population_2020 = population_2020.drop(columns=['Unnamed: 3'])
+population_2020 = population_2020.drop(columns=['Unnamed: 3']) #remove weird column
 
 merged_2020 = population_2020.merge(zip_codes, left_on='ZCTA5', right_on='ZCTA5', how='left')
 
@@ -452,6 +465,7 @@ print(merged_2020.head(3))
 ### 2. Conduct spatial join
 ```{python}
 merged_2020['P1_001N'] = pd.to_numeric(merged_2020['P1_001N'])
+# change population to numberic to make sum works
 
 merged_2020 = gpd.GeoDataFrame(merged_2020, geometry='geometry', crs=zip_codes.crs)
 
@@ -468,7 +482,6 @@ print(district_population)
 
 ### 3. Map the action ratio in each district
 ```{python}
-
 merged_district_gdf = merged_district_gdf.merge(district_population, on='District', how='left')
 
 merged_district_gdf['Total_Population'] = pd.to_numeric(merged_district_gdf['Total_Population'], errors='coerce')
@@ -493,7 +506,7 @@ merged_district_gdf.plot(
 ax.set_title("Enforcement Actions per Capita by US Attorney District", fontsize=16)
 ax.set_axis_off() 
 
-plt.axis('equal')  # Keeps the aspect ratio correct
+plt.axis('equal')  
 plt.xlim([-180, -60]) 
 plt.ylim([20, 55])
 
