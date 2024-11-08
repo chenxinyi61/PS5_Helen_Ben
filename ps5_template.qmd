@@ -1,6 +1,6 @@
 ---
-title: "title"
-author: "author"
+title: "PS5"
+author: "Ben Zhang, Xinyi Chen"
 date: "date"
 format: 
   pdf:
@@ -26,11 +26,11 @@ output:
 ## Submission Steps (10 pts)
 1. This problem set is a paired problem set.
 2. Play paper, scissors, rock to determine who goes first. Call that person *Partner 1*.
-    - Partner 1 (name and cnet ID):
-    - Partner 2 (name and cnet ID):
+    - Partner 1 (name and cnet ID): Ben Zhang, bzhang369
+    - Partner 2 (name and cnet ID): Xinyi Chen, chen61
 3. Partner 1 will accept the `ps5` and then share the link it creates with their partner. You can only share it with one partner so you will not be able to change it after your partner has accepted. 
-4. "This submission is our work alone and complies with the 30538 integrity policy." Add your initials to indicate your agreement: \*\*\_\_\*\* \*\*\_\_\*\*
-5. "I have uploaded the names of anyone else other than my partner and I worked with on the problem set **[here](https://docs.google.com/forms/d/185usrCREQaUbvAXpWhChkjghdGgmAZXA3lPWpXLLsts/edit)**"  (1 point)
+4. "This submission is our work alone and complies with the 30538 integrity policy." Add your initials to indicate your agreement: XC, BZ
+5. "I have uploaded the names of anyone else other than my partner and I worked with on the problem set **[here](https://docs.google.com/forms/d/185usrCREQaUbvAXpWhChkjghdGgmAZXA3lPWpXLLsts/edit)**"  : XC, BZ(1 point)
 6. Late coins used this pset: \*\*\_\_\*\* Late coins left after submission: \*\*\_\_\*\*
 7. Knit your `ps5.qmd` to an PDF file to make `ps5.pdf`, 
     * The PDF should not be more than 25 pages. Use `head()` and re-size figures when appropriate. 
@@ -44,6 +44,8 @@ output:
 import pandas as pd
 import altair as alt
 import time
+import requests
+from bs4 import BeautifulSoup
 
 import warnings 
 warnings.filterwarnings('ignore')
@@ -56,13 +58,10 @@ alt.renderers.enable("png")
 ### 1. Scraping (PARTNER 1)
 
 ```{python}
-import requests
-from bs4 import BeautifulSoup
-
 url = "https://oig.hhs.gov/fraud/enforcement/"
 
 response = requests.get(url)
-soup = BeautifulSoup(response.content, 'lxml')
+soup = BeautifulSoup(response.content, 'html.parser')
 
 enforcement_actions = soup.find_all('div', class_='usa-card__container')
 
@@ -104,27 +103,24 @@ print(df.head())
 agencies = []
 for link in links:
     response = requests.get(link)
-    soup = BeautifulSoup(response.content, 'lxml')
+    soup = BeautifulSoup(response.content, 'html.parser')
 
     agency_tag = soup.find('span', class_='padding-right-2 text-base')
-
     if agency_tag:
         agency_text = agency_tag.find_next('li').text.strip()
         if agency_text.startswith("Agency:"):
-
             agency = agency_text.replace("Agency:", "").strip()
         else:
-
-            agency = "Unknown"
+            agency = "Unknown"  # If "Agency" prefix is not present, assign "Unknown"
     else:
-
-        agency = "Unknown"
+        agency = "Unknown"  
 
     agencies.append(agency)
 
 df['Agency'] = agencies
 
 print(df.head())
+
 ```
 
 ## Step 2: Making the scraper dynamic
@@ -133,13 +129,58 @@ print(df.head())
 
 * a. Pseudo-Code (PARTNER 2)
 
+1. Define the main function scrape_enforcement_actions(start_year, start_month)
+
+Check if start_year is valid (>= 2013). If not, return a message indicating the restriction.
+
+2. Initialize variables
+
+Create empty lists for titles, dates, categories, links, and agencies.
+
+Set start_date based on start_year and start_month.
+
+Set page to 1 and more_pages to True.
+
+Initialize agency_cache as an empty dictionary.
+
+3. First Loop to Iterate Pages
+
+While there are more pages and the current page is <= 480:
+Build the URL for the current page.
+Send a request to the URL and parse the content using BeautifulSoup.
+Extract enforcement actions using HTML tags.
+
+4. Check if there are enforcement actions
+
+If no enforcement actions are found, set more_pages to False and exit the loop.
+
+5. Second Loop through enforcement actions 
+
+For each enforcement action: Extract the date and check if it’s older than start_date. If so, stop further pages.
+
+Extract details (title, link, category).
+
+Check if the agency information for the link is cached. If not:
+Send a request to the link's page and scrape the agency information.
+
+Cache the agency information to avoid duplicate requests.
+
+Append the extracted data to the lists.
+
+6. Move to the next page by incrementing page.
+
+7. Save data to CSV
+
+Create a DataFrame and save it to a CSV file.
+Print the total number of enforcement actions scraped.
+
+8. Return the DataFrame
+
 
 * b. Create Dynamic Scraper (PARTNER 2)
 
+
 ```{python}
-import requests
-import pandas as pd
-from bs4 import BeautifulSoup
 from datetime import datetime
 
 def scrape_enforcement_actions(start_year, start_month):
@@ -184,10 +225,10 @@ def scrape_enforcement_actions(start_year, start_month):
             categories.append(category)
             links.append(link)
 
+# Agency Caching: if an agency’s page has already been accessed, the cached value will be used, reducing the number of detail page requests.
             if link in agency_cache:
                 agency = agency_cache[link]
             else:
-                # Fetch agency from detail page only when necessary
                 agency_response = requests.get(link)
                 agency_soup = BeautifulSoup(agency_response.content, 'html.parser')
                 agency_tag = agency_soup.find('span', class_='padding-right-2 text-base')
@@ -200,7 +241,6 @@ def scrape_enforcement_actions(start_year, start_month):
                 else:
                     agency = "Unknown"
                 agency_cache[link] = agency  # Cache the result to avoid future requests
-
             agencies.append(agency)
 
         page += 1
@@ -214,22 +254,18 @@ def scrape_enforcement_actions(start_year, start_month):
     })
     df.to_csv(f"enforcement_actions_{start_year}_{start_month}.csv", index=False)
     print(f"Data saved to enforcement_actions_{start_year}_{start_month}.csv")
-    
-    print(f"Total enforcement actions: {len(df)}")
-    if not df.empty:
-        earliest_action = df.sort_values(by='Date').iloc[0]
-        print("Earliest enforcement action scraped:")
-        print(earliest_action)
 
     return df
 
-df = scrape_enforcement_actions(2023, 1)
+# ChatGpt: Can you help me reduces the time of running this loop?, agency_cache to store agency information by link.
 ```
 
 ```{python}
-print(f"Total enforcement actions: {len(df)}")
-print(f"The last row is : {df.tail(1)}")
+df_2023 = scrape_enforcement_actions(2023, 1)
+print(f"Total enforcement actions: {len(df_2023)}")
+print(f"The last row is : {df_2023.tail(1)}")
 ```
+
 * c. Test Partner's Code (PARTNER 1)
 
 ```{python}
@@ -250,7 +286,7 @@ df_2021['Date'] = pd.to_datetime(df_2021['Date'], format="%B %d, %Y")
 df_2021['Year-Month'] = df_2021['Date'].dt.to_period('M')
 
 monthly_counts = df_2021.groupby('Year-Month').size().reset_index(name='Count')
-monthly_counts['Year-Month'] = monthly_counts['Year-Month'].dt.to_timestamp()  
+monthly_counts['Year-Month'] = monthly_counts['Year-Month'].dt.to_timestamp()  # 
 
 alt.Chart(monthly_counts).mark_line().encode(
     x=alt.X('Year-Month:T', title='Date', axis=alt.Axis(format='%Y-%m')),
@@ -267,72 +303,55 @@ alt.Chart(monthly_counts).mark_line().encode(
 * based on "Criminal and Civil Actions" vs. "State Enforcement Agencies"
 
 ```{python}
-import altair as alt
+df_2021['Year-Month'] = df_2021['Date'].dt.to_period('M').dt.to_timestamp()
 
-filtered_df_1 = df_2021[df_2021['Category'].isin(["Criminal and Civil Actions", "State Enforcement Agencies"])]
-category_counts = (
-    filtered_df_1
-    .groupby([filtered_df_1["Date"].dt.to_period("M"), "Category"])
-    .size()
-    .reset_index(name="Count")
-)
-category_counts["Date"] = category_counts["Date"].dt.to_timestamp()
+df_filtered = df_2021[df_2021['Category'].isin(["Criminal and Civil Actions", "State Enforcement Agencies"])]
 
-chart_1 = alt.Chart(category_counts).mark_line(point=True).encode(
-    x=alt.X("Date:T", title="Date"),
-    y=alt.Y("Count:Q", title="Number of Enforcement Actions"),
-    color=alt.Color("Category:N", title="Category"),
-    tooltip=["Date:T", "Category:N", "Count:Q"]
+category_counts = df_filtered.groupby(['Year-Month', 'Category']).size().reset_index(name='Count')
+
+alt.Chart(category_counts).mark_line().encode(
+    x=alt.X('Year-Month:T', title='Date', axis=alt.Axis(format='%Y-%m')),
+    y=alt.Y('Count:Q', title='Number of Enforcement Actions'),
+    color=alt.Color('Category:N', title='Category'),
+    tooltip=['Year-Month:T', 'Count:Q', 'Category:N']
 ).properties(
-    title="Comparison of Enforcement Actions: Criminal and Civil Actions vs. State Enforcement Agencies",
+    title='Monthly Enforcement Actions: Criminal and Civil Actions vs. State Enforcement Agencies',
     width=600,
     height=400
-).interactive()
-
-chart_1
-
+)
 ```
 
 * based on five topics
 
 ```{python}
-def assign_topic(row):
-    title = row["Title"].lower()
-    if "health" in title or "medi" in title:
+df_criminal_civil = df_filtered[df_filtered['Category'] == "Criminal and Civil Actions"]
+
+def assign_topic(title):
+    title_lower = title.lower()
+    if "health" in title_lower or "medi" in title_lower:
         return "Health Care Fraud"
-    elif "bank" in title or "financial" in title or "laundering" in title or "tax" in title:
+    elif "bank" in title_lower or "financial" in title_lower or "laundering" in title_lower or "tax" in title_lower :
         return "Financial Fraud"
-    elif "drug" in title or "narcotics" in title or "substance" in title or "opioid" in title:
+    elif "drug" in title_lower or "opioid" in title_lower or "substance" in title_lower:
         return "Drug Enforcement"
-    elif "bribe" in title or "corruption" in title or "kickback" in title:
+    elif "bribe" in title_lower or "corruption" in title_lower or "kickback" in title_lower:
         return "Bribery/Corruption"
     else:
         return "Other"
 
-filtered_df_2 = filtered_df_1[filtered_df_1["Category"] == "Criminal and Civil Actions"]
-filtered_df_2["Topic"] = filtered_df_2.apply(assign_topic, axis=1)
+df_criminal_civil['Topic'] = df_criminal_civil['Title'].apply(assign_topic)
 
-topic_counts = (
-    filtered_df_2
-    .groupby([filtered_df_2["Date"].dt.to_period("M"), "Topic"])
-    .size()
-    .reset_index(name="Count")
-)
-topic_counts["Date"] = topic_counts["Date"].dt.to_timestamp()
+topic_counts = df_criminal_civil.groupby(['Year-Month', 'Topic']).size().reset_index(name='Count')
 
-chart_2 = alt.Chart(topic_counts).mark_line(point=True).encode(
-    x=alt.X("Date:T", title="Date"),
-    y=alt.Y("Count:Q", title="Number of Enforcement Actions"),
-    color=alt.Color("Topic:N", title="Topic"),
-    tooltip=["Date:T", "Topic:N", "Count:Q"]
+alt.Chart(topic_counts).mark_line().encode(
+    x=alt.X('Year-Month:T', title='Date', axis=alt.Axis(format='%Y-%m')),
+    y=alt.Y('Count:Q', title='Number of Enforcement Actions'),
+    color=alt.Color('Topic:N', title='Topic')
 ).properties(
-    title="Breakdown of Enforcement Actions in Criminal and Civil Actions by Topic",
+    title='Monthly Enforcement Actions by Topic in Criminal and Civil Actions',
     width=600,
     height=400
 )
-
-chart_2
-
 ```
 
 ## Step 4: Create maps of enforcement activity
@@ -371,7 +390,7 @@ plt.show()
 ### 2. Map by District (PARTNER 2)
 
 ```{python}
-district_gdf = gpd.read_file("geo_export_f076858e-676a-406c-8696-324e40336d68.shp")
+district_gdf = gpd.read_file("geo_export_828db5ef-6c4f-412d-aed1-b5f6c9905efd.shp")
 
 enforcement_data = pd.read_csv("enforcement_actions_2021_1.csv")
 
@@ -449,6 +468,9 @@ print(district_population)
 
 ### 3. Map the action ratio in each district
 ```{python}
+
+merged_district_gdf = merged_district_gdf.merge(district_population, on='District', how='left')
+
 merged_district_gdf['Total_Population'] = pd.to_numeric(merged_district_gdf['Total_Population'], errors='coerce')
 
 merged_district_gdf['EnforcementCount'] = merged_district_gdf['EnforcementCount'].fillna(0)
