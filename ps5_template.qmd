@@ -1,7 +1,7 @@
 ---
 title: "PS5"
 author: "Ben Zhang, Xinyi Chen"
-date: "date"
+date: "Nov 9 2024"
 format: 
   pdf:
     include-in-header: 
@@ -31,7 +31,7 @@ output:
 3. Partner 1 will accept the `ps5` and then share the link it creates with their partner. You can only share it with one partner so you will not be able to change it after your partner has accepted. 
 4. "This submission is our work alone and complies with the 30538 integrity policy." Add your initials to indicate your agreement: XC, BZ
 5. "I have uploaded the names of anyone else other than my partner and I worked with on the problem set **[here](https://docs.google.com/forms/d/185usrCREQaUbvAXpWhChkjghdGgmAZXA3lPWpXLLsts/edit)**"  : XC, BZ(1 point)
-6. Late coins used this pset: \*\*\_\_\*\* Late coins left after submission: \*\*\_\_\*\*
+6. Late coins used this pset: 0， Late coins left after submission: 4
 7. Knit your `ps5.qmd` to an PDF file to make `ps5.pdf`, 
     * The PDF should not be more than 25 pages. Use `head()` and re-size figures when appropriate. 
 8. (Partner 1): push  `ps5.qmd` and `ps5.pdf` to your github repo.
@@ -273,7 +273,11 @@ def scrape_actions(start_year, start_month):
 ```
 
 ```{python}
+#| eval: false
 df_2023 = scrape_actions(2023, 1)
+```
+
+```{python}
 print(f"Total enforcement actions: {len(df_2023)}")
 print(f"The earliest enforcement action date is: {df_2023.tail(1)}")
 ```
@@ -281,7 +285,11 @@ print(f"The earliest enforcement action date is: {df_2023.tail(1)}")
 * c. Test Partner's Code (PARTNER 1)
 
 ```{python}
+#| eval: false
 df_2021 = scrape_actions(2021, 1)
+```
+
+```{python}
 print(f"Total enforcement actions: {len(df_2021)}")
 print(f"The earliest enforcement action date is: {df_2021.tail(1)}")
 ```
@@ -305,8 +313,8 @@ alt.Chart(monthly_counts).mark_line().encode(
     y=alt.Y('Count:Q', title='Number of Enforcement Actions')
 ).properties(
     title='Monthly Enforcement Actions Since January 2021',
-    width=600,
-    height=400
+    width=450,
+    height=300
 )
 
 # Reference of datetime: #https://pandas.pydata.org/docs/reference/api/pandas.to_datetime.html
@@ -332,8 +340,8 @@ alt.Chart(category_counts).mark_line().encode(
     tooltip=['Year-Month:T', 'Count:Q', 'Category:N']
 ).properties(
     title='Monthly Enforcement Actions: Criminal and Civil Actions vs. State Enforcement Agencies',
-    width=600,
-    height=400
+    width=450,
+    height=300
 )
 ```
 
@@ -371,8 +379,8 @@ alt.Chart(topic_counts).mark_line().encode(
     color=alt.Color('Topic:N', title='Topic')
 ).properties(
     title='Monthly Enforcement Actions by Topic in Criminal and Civil Actions',
-    width=600,
-    height=400
+    width=450,
+    height=300
 )
 
 
