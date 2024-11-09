@@ -71,16 +71,17 @@ categories = []
 links = []
 
 for action in enforcement_actions:
-    
+
     title_tag = action.find('h2', class_='usa-card__heading').find('a')
     title = title_tag.text.strip()
     link = "https://oig.hhs.gov" + title_tag['href']
-    
-    date = action.find('span', class_='text-base-dark padding-right-105').text.strip()
-    
+
+    date = action.find(
+        'span', class_='text-base-dark padding-right-105').text.strip()
+
     category_tag = action.find('ul', class_='display-inline add-list-reset')
     category = category_tag.find('li').text.strip()
-    
+
     titles.append(title)
     dates.append(date)
     categories.append(category)
@@ -118,7 +119,7 @@ for link in links:
         else:
             agency = "Unknown"  # If "Agency" prefix is not present, assign "Unknown"
     else:
-        agency = "Unknown"  
+        agency = "Unknown"
 
     agencies.append(agency)
 
@@ -183,11 +184,12 @@ Create a DataFrame and save it to a CSV file.
 ```{python}
 from datetime import datetime
 
+
 def scrape_actions(start_year, start_month):
     if start_year < 2013:
         print("Data is only available for years >= 2013.")
         return None
-# initial empty variables and page 
+# initial empty variables and page
     titles, dates, categories, links, agencies = [], [], [], [], []
     start_date = datetime(start_year, start_month, 1)
     page = 1
@@ -200,16 +202,18 @@ def scrape_actions(start_year, start_month):
 
         response = requests.get(url)
         soup = BeautifulSoup(response.content, 'html.parser')
-        enforcement_actions = soup.find_all('div', class_='usa-card__container')
+        enforcement_actions = soup.find_all(
+            'div', class_='usa-card__container')
 
         if not enforcement_actions:
             more_pages = False
             break
 
         for action in enforcement_actions:
-            date_text = action.find('span', class_='text-base-dark padding-right-105').text.strip()
+            date_text = action.find(
+                'span', class_='text-base-dark padding-right-105').text.strip()
             action_date = datetime.strptime(date_text, "%B %d, %Y")
-            
+
             if action_date < start_date:
                 more_pages = False
                 break
@@ -218,7 +222,8 @@ def scrape_actions(start_year, start_month):
             title_tag = action.find('h2', class_='usa-card__heading').find('a')
             title = title_tag.text.strip()
             link = "https://oig.hhs.gov" + title_tag['href']
-            category_tag = action.find('ul', class_='display-inline add-list-reset')
+            category_tag = action.find(
+                'ul', class_='display-inline add-list-reset')
             category = category_tag.find('li').text.strip()
 
             titles.append(title)
@@ -232,17 +237,20 @@ def scrape_actions(start_year, start_month):
                 agency = agency_cache[link]
             else:
                 agency_response = requests.get(link)
-                agency_soup = BeautifulSoup(agency_response.content, 'html.parser')
-                agency_tag = agency_soup.find('span', class_='padding-right-2 text-base')
+                agency_soup = BeautifulSoup(
+                    agency_response.content, 'html.parser')
+                agency_tag = agency_soup.find(
+                    'span', class_='padding-right-2 text-base')
                 if agency_tag:
                     agency_text = agency_tag.find_next('li').text.strip()
                     if agency_text.startswith("Agency:"):
                         agency = agency_text.replace("Agency:", "").strip()
                     else:
-                        agency = "Unknown" # some do not have agency, put unknown here
+                        agency = "Unknown"  # some do not have agency, put unknown here
                 else:
                     agency = "Unknown"
-                agency_cache[link] = agency  # Cache the result to avoid future requests
+                # Cache the result to avoid future requests
+                agency_cache[link] = agency
             agencies.append(agency)
 
         page += 1
@@ -254,7 +262,8 @@ def scrape_actions(start_year, start_month):
         'Link': links,
         'Agency': agencies
     })
-    df.to_csv(f"enforcement_actions_{start_year}_{start_month}.csv", index=False)
+    df.to_csv(f"enforcement_actions_{start_year}_{
+              start_month}.csv", index=False)
     print(f"Data saved to enforcement_actions_{start_year}_{start_month}.csv")
 
     return df
@@ -289,7 +298,7 @@ df_2021['Date'] = pd.to_datetime(df_2021['Date'], format="%B %d, %Y")
 df_2021['Year-Month'] = df_2021['Date'].dt.to_period('M')
 
 monthly_counts = df_2021.groupby('Year-Month').size().reset_index(name='Count')
-monthly_counts['Year-Month'] = monthly_counts['Year-Month'].dt.to_timestamp()  
+monthly_counts['Year-Month'] = monthly_counts['Year-Month'].dt.to_timestamp()
 
 alt.Chart(monthly_counts).mark_line().encode(
     x=alt.X('Year-Month:T', title='Date', axis=alt.Axis(format='%Y-%m')),
@@ -310,9 +319,11 @@ alt.Chart(monthly_counts).mark_line().encode(
 ```{python}
 df_2021['Year-Month'] = df_2021['Date'].dt.to_period('M').dt.to_timestamp()
 
-df_filtered = df_2021[df_2021['Category'].isin(["Criminal and Civil Actions", "State Enforcement Agencies"])]
+df_filtered = df_2021[df_2021['Category'].isin(
+    ["Criminal and Civil Actions", "State Enforcement Agencies"])]
 
-category_counts = df_filtered.groupby(['Year-Month', 'Category']).size().reset_index(name='Count')
+category_counts = df_filtered.groupby(
+    ['Year-Month', 'Category']).size().reset_index(name='Count')
 
 alt.Chart(category_counts).mark_line().encode(
     x=alt.X('Year-Month:T', title='Date', axis=alt.Axis(format='%Y-%m')),
@@ -329,13 +340,15 @@ alt.Chart(category_counts).mark_line().encode(
 * based on five topics
 
 ```{python}
-df_criminal_civil = df_filtered[df_filtered['Category'] == "Criminal and Civil Actions"]
+df_criminal_civil = df_filtered[df_filtered['Category']
+                                == "Criminal and Civil Actions"]
+
 
 def assign_topic(title):
     title_lower = title.lower()
     if "health" in title_lower or "medi" in title_lower:
         return "Health Care Fraud"
-    elif "bank" in title_lower or "financial" in title_lower or "laundering" in title_lower or "tax" in title_lower :
+    elif "bank" in title_lower or "financial" in title_lower or "laundering" in title_lower or "tax" in title_lower:
         return "Financial Fraud"
     elif "drug" in title_lower or "opioid" in title_lower or "substance" in title_lower:
         return "Drug Enforcement"
@@ -344,11 +357,13 @@ def assign_topic(title):
     else:
         return "Other"
 
+
 df_criminal_civil['Topic'] = df_criminal_civil['Title'].apply(assign_topic)
 
 # Chatgpt, ‘can you write a template for me to search for certain words and make it become a new category in new column', ask help for write a function at beginning
 
-topic_counts = df_criminal_civil.groupby(['Year-Month', 'Topic']).size().reset_index(name='Count')
+topic_counts = df_criminal_civil.groupby(
+    ['Year-Month', 'Topic']).size().reset_index(name='Count')
 
 alt.Chart(topic_counts).mark_line().encode(
     x=alt.X('Year-Month:T', title='Date', axis=alt.Axis(format='%Y-%m')),
@@ -372,24 +387,27 @@ import geopandas as gpd
 import matplotlib.pyplot as plt
 
 state_gdf = gpd.read_file("cb_2018_us_state_500k.shp")
-enforcement_data = pd.read_csv("enforcement_actions_2021_1.csv")  
+enforcement_data = pd.read_csv("enforcement_actions_2021_1.csv")
 
-state_enforcement = enforcement_data[enforcement_data['Agency'].str.contains("State of", na=False)]
-state_enforcement['State'] = state_enforcement['Agency'].str.replace("State of", "").str.strip()
+state_enforcement = enforcement_data[enforcement_data['Agency'].str.contains(
+    "State of", na=False)]
+state_enforcement['State'] = state_enforcement['Agency'].str.replace(
+    "State of", "").str.strip()
 
 state_counts = state_enforcement['State'].value_counts().reset_index()
 state_counts.columns = ['State', 'EnforcementCount']
 
-state_gdf = state_gdf.rename(columns={"NAME": "State"})  
-merged_gdf = state_gdf.merge(state_counts, on="State", how="left").fillna(0) 
+state_gdf = state_gdf.rename(columns={"NAME": "State"})
+merged_gdf = state_gdf.merge(state_counts, on="State", how="left").fillna(0)
 
 fig, ax = plt.subplots(1, 1, figsize=(15, 10))
-merged_gdf.plot(column="EnforcementCount", cmap="Blues", linewidth=0.8, ax=ax, edgecolor="0.8", legend=True)
+merged_gdf.plot(column="EnforcementCount", cmap="Blues",
+                linewidth=0.8, ax=ax, edgecolor="0.8", legend=True)
 ax.set_title("Enforcement Actions by State", fontsize=16)
 ax.set_axis_off()
 
-plt.axis('equal')  
-plt.xlim([-180, -60])  
+plt.axis('equal')
+plt.xlim([-180, -60])
 
 plt.show()
 
@@ -400,41 +418,47 @@ plt.show()
 ### 2. Map by District (PARTNER 2)
 
 ```{python}
-district_gdf = gpd.read_file("geo_export_828db5ef-6c4f-412d-aed1-b5f6c9905efd.shp")
+district_gdf = gpd.read_file(
+    "geo_export_828db5ef-6c4f-412d-aed1-b5f6c9905efd.shp")
 
 enforcement_data = pd.read_csv("enforcement_actions_2021_1.csv")
 
-district_enforcement = enforcement_data[enforcement_data['Agency'].str.contains("District", na=False)]
+district_enforcement = enforcement_data[enforcement_data['Agency'].str.contains(
+    "District", na=False)]
 
-district_enforcement['District'] = district_enforcement['Agency'].str.split(',').str[1].str.strip()
-
-district_enforcement['District'] = district_enforcement['District'].str.replace(r'[^\w\s,.-]', '', regex=True)
- 
-district_gdf = district_gdf.rename(columns={"judicial_d": "District"}) 
+district_enforcement['District'] = district_enforcement['Agency'].str.split(
+    ',').str[1].str.strip()
 
 # Chatgpt, 'I want to extract information after comma, how can I write that', help for /split() function
+
+district_enforcement['District'] = district_enforcement['District'].str.replace(
+    r'[^\w\s,.-]', '', regex=True)
+
+# chatgpt, 'there are some columns has some signs, how can I remove them?'
 # reference: https://teamtreehouse.com/community/can-someone-explain-the-logic-of-replacews-to-me
+district_gdf = district_gdf.rename(columns={"judicial_d": "District"})
 
 district_counts = district_enforcement['District'].value_counts().reset_index()
 district_counts.columns = ['District', 'EnforcementCount']
 
-merged_district_gdf = district_gdf.merge(district_counts, on="District", how="left").fillna(0)
+merged_district_gdf = district_gdf.merge(
+    district_counts, on="District", how="left").fillna(0)
 
-fig, ax = plt.subplots(1, 1, figsize=(12, 8))  
+fig, ax = plt.subplots(1, 1, figsize=(12, 8))
 merged_district_gdf.plot(
-    column="EnforcementCount", 
-    cmap="Blues", 
-    linewidth=0.8, 
-    ax=ax, 
-    edgecolor="0.8", 
+    column="EnforcementCount",
+    cmap="Blues",
+    linewidth=0.8,
+    ax=ax,
+    edgecolor="0.8",
     legend=True
 )
 
 ax.set_title("Enforcement Actions by US Attorney District", fontsize=16)
-ax.set_axis_off()  
+ax.set_axis_off()
 
-plt.axis('equal')  
-plt.xlim([-180, -60])  
+plt.axis('equal')
+plt.xlim([-180, -60])
 plt.ylim([20, 55])
 
 plt.show()
@@ -449,15 +473,18 @@ zip_codes = gpd.read_file("gz_2010_us_860_00_500k.shp")
 
 population_2020 = pd.read_csv("DECENNIALDHC2020.P1-Data.csv")
 
-population_2020  = population_2020 .drop(index=0).reset_index(drop=True)
+population_2020 = population_2020 .drop(index=0).reset_index(drop=True)
 
 population_2020.rename(columns={'NAME': 'ZCTA5'}, inplace=True)
 
-population_2020 ['ZCTA5'] = population_2020 ['ZCTA5'].str.replace('ZCTA5 ', '', regex=False)
+population_2020['ZCTA5'] = population_2020['ZCTA5'].str.replace(
+    'ZCTA5 ', '', regex=False)
 
-population_2020 = population_2020.drop(columns=['Unnamed: 3']) #remove weird column
+population_2020 = population_2020.drop(
+    columns=['Unnamed: 3'])  # remove weird column
 
-merged_2020 = population_2020.merge(zip_codes, left_on='ZCTA5', right_on='ZCTA5', how='left')
+merged_2020 = population_2020.merge(
+    zip_codes, left_on='ZCTA5', right_on='ZCTA5', how='left')
 
 print(merged_2020.head(3))
 ```
@@ -467,33 +494,43 @@ print(merged_2020.head(3))
 merged_2020['P1_001N'] = pd.to_numeric(merged_2020['P1_001N'])
 # change population to numberic to make sum works
 
-merged_2020 = gpd.GeoDataFrame(merged_2020, geometry='geometry', crs=zip_codes.crs)
+# merged_2020 is not GeoDF, I cannot merge in the beginning, asked chatGPT
+merged_2020 = gpd.GeoDataFrame(
+    merged_2020, geometry='geometry', crs=zip_codes.crs)
 
 if merged_2020.crs != district_gdf.crs:
     merged_2020 = merged_2020.to_crs(district_gdf.crs)
 
-joined = gpd.sjoin(merged_2020, district_gdf, how="left", predicate="intersects")
+joined = gpd.sjoin(merged_2020, district_gdf,
+                   how="left", predicate="intersects")
 
 district_population = joined.groupby('District')['P1_001N'].sum().reset_index()
-district_population.rename(columns={'P1_001N': 'Total_Population'}, inplace=True)
+district_population.rename(
+    columns={'P1_001N': 'Total_Population'}, inplace=True)
 
 print(district_population)
 ```
 
 ### 3. Map the action ratio in each district
 ```{python}
-merged_district_gdf = merged_district_gdf.merge(district_population, on='District', how='left')
+merged_district_gdf = merged_district_gdf.merge(
+    district_population, on='District', how='left')
 
-merged_district_gdf['Total_Population'] = pd.to_numeric(merged_district_gdf['Total_Population'], errors='coerce')
+merged_district_gdf['Total_Population'] = pd.to_numeric(
+    merged_district_gdf['Total_Population'], errors='coerce')
 
-merged_district_gdf['EnforcementCount'] = merged_district_gdf['EnforcementCount'].fillna(0)
-merged_district_gdf['Total_Population'] = merged_district_gdf['Total_Population'].fillna(1)  # Avoid division by zero
+merged_district_gdf['EnforcementCount'] = merged_district_gdf['EnforcementCount'].fillna(
+    0)
+merged_district_gdf['Total_Population'] = merged_district_gdf['Total_Population'].fillna(
+    1)  # Avoid division by zero, inspired from chatGPT
 
-merged_district_gdf['EnforcementPerCapita'] = merged_district_gdf['EnforcementCount'] / merged_district_gdf['Total_Population']
+merged_district_gdf['EnforcementPerCapita'] = merged_district_gdf['EnforcementCount'] / \
+    merged_district_gdf['Total_Population']
 
-print(merged_district_gdf[['District', 'EnforcementCount', 'Total_Population', 'EnforcementPerCapita']].head())
+print(merged_district_gdf[['District', 'EnforcementCount',
+      'Total_Population', 'EnforcementPerCapita']].head())
 
-fig, ax = plt.subplots(1, 1, figsize=(12, 8)) 
+fig, ax = plt.subplots(1, 1, figsize=(12, 8))
 merged_district_gdf.plot(
     column='EnforcementPerCapita',
     cmap='Blues',
@@ -503,11 +540,12 @@ merged_district_gdf.plot(
     legend=True
 )
 
-ax.set_title("Enforcement Actions per Capita by US Attorney District", fontsize=16)
-ax.set_axis_off() 
+ax.set_title(
+    "Enforcement Actions per Capita by US Attorney District", fontsize=16)
+ax.set_axis_off()
 
-plt.axis('equal')  
-plt.xlim([-180, -60]) 
+plt.axis('equal')
+plt.xlim([-180, -60])
 plt.ylim([20, 55])
 
 plt.show()
